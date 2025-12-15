@@ -1,0 +1,111 @@
+##Posição de estoque por produto.
+          
+          select 
+          p.id_produto,
+          p.nome as produto,
+          c.nome as categoria,
+          f.nome as fornecedor,
+          p.estoque as quantidade_estoque,p.preco,
+          (p.estoque * p.preco) as valor_total_estoque
+          from produtos p
+          left join categoria c on c.id_categoria  = p.id_categoria
+          left join fornecedor f on f.id_fornecedor = p.id_fornecedor
+          order by p.nome;
+		
+
+          
+	##Localização dos principais produtos.
+    
+    select
+    p.id_produto,
+    p.nome as produto,
+    l.descricao as descricao_local,
+    el.quantidade
+    from produtos p
+    join estoque_local el on el.id_produto = p.id_produto
+    join localizacao l on l.id_localizacao = el.id_produto
+    order by el.quantidade desc;
+    
+
+##Quais os produtos mais vendidos nos últimos 7 dias?
+
+    select 
+    p.id_produto,
+    p.nome as produto,
+    sum(isd.quantidade) as total_vendido
+    from itens_saida isd
+    join produtos p on p.id_produto = isd.id_produto
+    join saidas s on s.id_saida = isd.id_saida
+    WHERE s.data_saida >= CURDATE() - INTERVAL 7 DAY
+    group by p.id_produto, p.nome
+    order by total_vendido desc;
+
+
+##Produtos que entraram e saíram na última semana. (gerar relatório)
+
+create view vw_produtos_entrada_7dias as 
+select distinct
+e.id_produto,
+p.nome as produto
+from entrada e
+join produtos p on p.id_produto = e.id_produto
+where e.data_entrada >= curdate() - interval 7 day;
+
+select * from vw_produtos_entrada_7dias;
+
+create view vw_produtos_saida_7dias as
+select distinct
+isd.id_produto,
+p.nome as produto
+from itens_saida isd
+join saidas s on s.id_saida = isd.id_saida
+join produtos p on p.id_produto = isd.id_produto
+where s.data_saida >= curdate() - interval 7 day;
+
+select * from vw_produtos_saida_7dias;
+
+ ##Listar produtos que estão abaixo do mínimo. (gerar relátorio)
+  
+  
+ CREATE OR REPLACE VIEW vw_produtos_abaixo_min as
+  select
+          p.id_produto,
+          p.nome as produto,
+          p.estoque as quantidade_atual,
+          em.quantidade_minima,
+          (em.quantidade_minima - p.estoque) as quantidade_faltante
+          from estoque_minimo em
+          join produtos p on p.id_produto = em.id_produto
+          left join localizacao l on l.id_localizacao = em.id_localizacao
+          where p.estoque < em.quantidade_minima
+          order by quantidade_faltante  desc;
+          
+        
+select * from vw_produtos_abaixo_min;
+
+SHOW FULL TABLES WHERE Table_type = 'VIEW';
+
+create or replace view vw_fornecedores_top_mes as
+
+
+   SELECT COUNT(*) AS qt_total_pedidos FROM pedidos_compra;
+   
+   SELECT id_pedido, id_fornecedor, data_pedido, status
+FROM pedidos_compra
+ORDER BY data_pedido DESC
+LIMIT 10;
+          
+create or replace view vw_fornecedores_top_mes as
+SELECT
+  f.id_fornecedor, f.nome AS fornecedor,
+  COUNT(p.id_pedido) AS total_pedidos,
+  MIN(p.data_pedido) AS primeira_data,
+  MAX(p.data_pedido) AS ultima_data
+FROM pedidos_compra p
+JOIN fornecedor f ON p.id_fornecedor = f.id_fornecedor
+WHERE DATE(p.data_pedido) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+GROUP BY f.id_fornecedor, f.nome
+ORDER BY total_pedidos DESC
+LIMIT 10;
+   
+      select * from vw_fornecedores_top_mes;      
