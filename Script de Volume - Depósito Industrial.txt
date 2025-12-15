@@ -1,0 +1,228 @@
+## Volume de produtos 
+
+DROP PROCEDURE IF EXISTS gerar_produtos_portfolio;
+DELIMITER $$
+
+CREATE PROCEDURE gerar_produtos_portfolio()
+BEGIN
+    UPDATE produtos
+    SET
+        nome = CASE (id_produto % 20)
+            WHEN 0 THEN CONCAT('Parafuso Sextavado M6 - ', id_produto)
+            WHEN 1 THEN CONCAT('Parafuso Sextavado M8 - ', id_produto)
+            WHEN 2 THEN CONCAT('Parafuso Sextavado M10 - ', id_produto)
+            WHEN 3 THEN CONCAT('Porca Zincada M6 - ', id_produto)
+            WHEN 4 THEN CONCAT('Porca Zincada M8 - ', id_produto)
+            WHEN 5 THEN CONCAT('Porca Zincada M10 - ', id_produto)
+            WHEN 6 THEN CONCAT('Arruela Lisa 5mm - ', id_produto)
+            WHEN 7 THEN CONCAT('Arruela Pressão 8mm - ', id_produto)
+            WHEN 8 THEN CONCAT('Broca Aço Rápido 6mm - ', id_produto)
+            WHEN 9 THEN CONCAT('Broca Aço Rápido 10mm - ', id_produto)
+            WHEN 10 THEN CONCAT('Chave de Fenda 6mm - ', id_produto)
+            WHEN 11 THEN CONCAT('Chave Philips PH2 - ', id_produto)
+            WHEN 12 THEN CONCAT('Alicate Universal 8\" - ', id_produto)
+            WHEN 13 THEN CONCAT('Martelo Unha 27mm - ', id_produto)
+            WHEN 14 THEN CONCAT('Disco de Corte 115mm - ', id_produto)
+            WHEN 15 THEN CONCAT('Disco de Desbaste 180mm - ', id_produto)
+            WHEN 16 THEN CONCAT('Luva de Segurança Nitrílica - ', id_produto)
+            WHEN 17 THEN CONCAT('Óculos de Proteção Incolor - ', id_produto)
+            WHEN 18 THEN CONCAT('Capacete de Segurança Branco - ', id_produto)
+            ELSE CONCAT('Fita Isolante 20m - ', id_produto)
+        END,
+
+        SKU = CONCAT('SKU-', LPAD(id_produto, 6, '0')),
+
+        -- código de barras 100% único
+        codigo_barras = CONCAT('789', LPAD(id_produto, 10, '0')),
+
+        descricao = CONCAT(
+            'Produto industrial para estoque e manutenção. Código interno: ',
+            id_produto
+        ),
+        unidade = 'UN',
+        estoque = FLOOR(RAND() * 500),
+        estoque_minimo = FLOOR(10 + RAND() * 40),
+        preco = ROUND(5 + (RAND() * 500), 2)
+    WHERE id_produto > 46;
+END $$
+
+DELIMITER ;
+
+CALL gerar_produtos_portfolio();
+
+
+
+----------------------------------------------------------------------------------------
+
+## Volume de Entradas
+
+delimiter $$
+
+create procedure gerar_entradas_1000()
+begin
+
+    declare i int default 0;
+    declare v_id_produto int;
+    declare v_id_funcionario int;
+    
+    while i < 1000 do
+		select id_produto
+        into v_id_produto
+        from produtos
+        order by rand()
+        limit 1;
+        
+        select id_funcionario
+        into v_id_funcionario
+        from funcionarios
+        order by rand ()
+        limit 1;
+        
+        insert into entrada (
+        id_produto,
+        data_entrada,
+        quantidade,
+        id_funcionario
+        )
+        
+        values (
+        v_id_produto,
+        curdate() - interval floor(rand() * 365) day,
+        floor(1 + rand() * 100),
+        v_id_funcionario
+        
+        );
+        
+          set i = i + 1;
+		end while;
+
+ end$$
+
+ delimiter ;
+        
+call gerar_entradas_1000();
+
+select * from entrada;
+
+-------------------------------------------------------------------------------------
+## Volume Saída
+
+DELIMITER $$
+
+CREATE PROCEDURE gerar_saidas_1500()
+BEGIN
+    DECLARE i INT DEFAULT 0;
+    DECLARE v_id_funcionario INT;
+
+    WHILE i < 1500 DO
+
+        SELECT id_funcionario
+        INTO v_id_funcionario
+        FROM funcionarios
+        ORDER BY RAND()
+        LIMIT 1;
+
+        INSERT INTO saidas (
+            data_saida,
+            destino,
+            id_funcionario,
+            observacao
+        )
+        VALUES (
+            CURDATE() - INTERVAL FLOOR(RAND() * 365) DAY,
+            ELT(FLOOR(1 + RAND() * 4),
+                'Loja Física',
+                'Cliente Final',
+                'Transferência',
+                'Perda/Avaria'
+            ),
+            v_id_funcionario,
+            'Registro gerado automaticamente'
+        );
+
+        SET i = i + 1;
+    END WHILE;
+
+END$$
+
+DELIMITER ;
+
+call gerar_saidas_1500();
+
+select * from saidas;
+
+
+-------------------------------------------------------------------------------------------
+## Volume Transferências 
+
+DELIMITER $$
+
+CREATE PROCEDURE gerar_transferencias_3000()
+BEGIN
+    DECLARE i INT DEFAULT 0;
+    DECLARE v_id_produto INT;
+    DECLARE v_id_localizacao INT;
+    DECLARE v_id_funcionario INT;
+
+    WHILE i < 3000 DO
+
+        SELECT id_produto
+        INTO v_id_produto
+        FROM produtos
+        ORDER BY RAND()
+        LIMIT 1;
+
+        SELECT id_localizacao
+        INTO v_id_localizacao
+        FROM localizacao
+        ORDER BY RAND()
+        LIMIT 1;
+
+        -- Funcionários específicos
+        SET v_id_funcionario = ELT(
+            FLOOR(1 + RAND() * 5),
+            1, 3, 4, 10, 15
+        );
+
+        INSERT INTO transferencias (
+            id_produto,
+            id_localizacao,
+            quantidade,
+            data_transferencia,
+            id_funcionario
+        )
+        VALUES (
+            v_id_produto,
+            v_id_localizacao,
+            FLOOR(1 + RAND() * 50),
+            CURDATE() - INTERVAL FLOOR(RAND() * 365) DAY,
+            v_id_funcionario
+        );
+
+        SET i = i + 1;
+    END WHILE;
+
+END$$
+
+DELIMITER ;
+
+call gerar_transferencias_3000();
+
+#######################################################################################
+
+DELIMITER $$
+
+CREATE TRIGGER trg_transferencias_bi
+BEFORE INSERT ON transferencias
+FOR EACH ROW
+BEGIN
+    IF NEW.id_funcionario NOT IN (1, 3, 4, 10, 15) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Funcionário não autorizado a realizar transferências.';
+    END IF;
+END$$
+
+DELIMITER ;
+
+
+########################################################################################
